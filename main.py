@@ -59,131 +59,257 @@ class BlogPost(BaseModel):
     published_at: datetime = Field(default_factory=datetime.utcnow)
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
-# FIXED: Immediate content generation (non-blocking)
-def generate_immediate_content(title: str, category: str, tags: List[str]) -> tuple:
-    """Generate content immediately without AI delays"""
+# Affiliate link generator
+def get_affiliate_links(category: str, tool_name: str = "") -> dict:
+    """Generate affiliate links based on category and tool"""
     
-    # Create high-quality template content
-    content = f"""# {title}
+    # Common affiliate programs (replace with real affiliate IDs)
+    affiliate_links = {
+        "CRM Software": {
+            "primary": "https://hubspot.sjv.io/c/5416786/1999432/12893",  # HubSpot
+            "secondary": "https://salesforce.partners/affiliate-link",
+            "text": "Get started with HubSpot CRM (Free Forever)"
+        },
+        "Project Management": {
+            "primary": "https://try.monday.com/?utm_medium=affiliate&utm_source=saastools",
+            "secondary": "https://asana.com/?ref=saastools",
+            "text": "Try Monday.com - 14 Day Free Trial"
+        },
+        "Email Marketing": {
+            "primary": "https://mbsy.co/k8Bqf",  # Mailchimp
+            "secondary": "https://convertkit.com/?ref=saastools",
+            "text": "Start with Mailchimp - Free up to 2,000 contacts"
+        },
+        "Analytics Tools": {
+            "primary": "https://analytics.google.com/analytics/web/",
+            "secondary": "https://mixpanel.com/?ref=saastools",
+            "text": "Get Google Analytics (Free)"
+        },
+        "Design Tools": {
+            "primary": "https://partner.canva.com/c/5416786/647168/10068",
+            "secondary": "https://figma.com/?ref=saastools",
+            "text": "Try Canva Pro - 30 Day Free Trial"
+        },
+        "default": {
+            "primary": "#",
+            "secondary": "#",
+            "text": "Learn More"
+        }
+    }
+    
+    return affiliate_links.get(category, affiliate_links["default"])
 
-## Introduction
+# FIXED: HTML content generation with affiliate links
+def generate_html_content_with_affiliates(title: str, category: str, tags: List[str]) -> tuple:
+    """Generate HTML content with proper formatting and affiliate links"""
+    
+    # Get affiliate links for this category
+    affiliate_data = get_affiliate_links(category, title)
+    
+    # Create comprehensive HTML content with affiliate integration
+    content = f"""
+<div class="blog-content">
+    <h1>{title}</h1>
 
-In today's competitive business landscape, finding the right {category.lower()} solution is crucial for success. This comprehensive guide to {title} will help you understand the key features, benefits, pricing, and use cases to make an informed decision for your business.
+    <div class="intro-section">
+        <h2>Introduction</h2>
+        <p>In today's competitive business landscape, finding the right <strong>{category.lower()}</strong> solution is crucial for success. This comprehensive guide to <strong>{title}</strong> will help you understand the key features, benefits, pricing, and use cases to make an informed decision for your business.</p>
+        
+        <div class="cta-box" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007bff;">
+            <p><strong>🚀 Quick Start:</strong> <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="color: #007bff; font-weight: bold;">{affiliate_data['text']}</a></p>
+        </div>
+    </div>
 
-## What is {title}?
+    <div class="overview-section">
+        <h2>What is {title}?</h2>
+        <p><strong>{title}</strong> represents cutting-edge solutions in the <strong>{category}</strong> space. These tools are designed to streamline operations, improve efficiency, and drive business growth through advanced features and intuitive interfaces.</p>
+        
+        <p>Whether you're a small startup looking to optimize your workflows or a large enterprise seeking to scale your operations, the right {category.lower()} solution can transform how your business operates.</p>
+    </div>
 
-{title} represents cutting-edge solutions in the {category} space. These tools are designed to streamline operations, improve efficiency, and drive business growth through advanced features and intuitive interfaces.
+    <div class="features-section">
+        <h2>Key Features and Benefits</h2>
+        
+        <h3>🎯 Advanced Functionality</h3>
+        <ul>
+            <li><strong>Professional-grade capabilities</strong> that meet enterprise standards</li>
+            <li><strong>User-friendly interface</strong> with intuitive design and minimal learning curve</li>
+            <li><strong>Comprehensive feature set</strong> covering all essential business needs</li>
+            <li><strong>Excellent customer support</strong> with 24/7 availability and expert assistance</li>
+        </ul>
 
-## Key Features and Benefits
+        <h3>💼 Business Impact</h3>
+        <ul>
+            <li><strong>Increased Productivity:</strong> Streamline workflows and eliminate manual processes</li>
+            <li><strong>Better Collaboration:</strong> Enable seamless teamwork across departments</li>
+            <li><strong>Cost Efficiency:</strong> Reduce operational costs while improving output quality</li>
+            <li><strong>Scalable Growth:</strong> Solutions that grow with your business needs</li>
+        </ul>
+        
+        <div class="affiliate-banner" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 10px; margin: 30px 0; text-align: center;">
+            <h4 style="margin: 0 0 15px 0; color: white;">⭐ Recommended Solution</h4>
+            <p style="margin: 0 0 15px 0; font-size: 16px;">Get started with the top-rated {category.lower()} platform trusted by thousands of businesses.</p>
+            <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: white; color: #667eea; padding: 12px 25px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Start Free Trial →</a>
+        </div>
+    </div>
 
-### Advanced Functionality
-- **Professional-grade capabilities** that meet enterprise standards
-- **User-friendly interface** with intuitive design and minimal learning curve
-- **Comprehensive feature set** covering all essential business needs
-- **Excellent customer support** with 24/7 availability and expert assistance
+    <div class="pricing-section">
+        <h2>💰 Pricing and Plans</h2>
+        <p>Most <strong>{category.lower()}</strong> solutions offer flexible pricing tiers to accommodate different business sizes:</p>
 
-### Business Impact
-- **Increased Productivity**: Streamline workflows and eliminate manual processes
-- **Better Collaboration**: Enable seamless teamwork across departments
-- **Cost Efficiency**: Reduce operational costs while improving output quality
-- **Scalable Growth**: Solutions that grow with your business needs
+        <div class="pricing-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 25px 0;">
+            <div style="border: 1px solid #e9ecef; border-radius: 8px; padding: 20px;">
+                <h3 style="color: #28a745;">💡 Starter Plan</h3>
+                <p><strong>Price:</strong> Starting at $29/month</p>
+                <p><strong>Best For:</strong> Small teams and startups</p>
+                <p><strong>Features:</strong> Core functionality with essential features</p>
+            </div>
+            
+            <div style="border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; border-color: #007bff; border-width: 2px;">
+                <h3 style="color: #007bff;">🚀 Professional Plan</h3>
+                <p><strong>Price:</strong> Starting at $79/month</p>
+                <p><strong>Best For:</strong> Growing businesses and medium teams</p>
+                <p><strong>Features:</strong> Advanced features with enhanced capabilities</p>
+                <div style="margin-top: 15px;">
+                    <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: #007bff; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px;">Most Popular →</a>
+                </div>
+            </div>
+            
+            <div style="border: 1px solid #e9ecef; border-radius: 8px; padding: 20px;">
+                <h3 style="color: #6c757d;">🏢 Enterprise Plan</h3>
+                <p><strong>Price:</strong> Starting at $199/month</p>
+                <p><strong>Best For:</strong> Large organizations with complex needs</p>
+                <p><strong>Features:</strong> Full feature access with premium support</p>
+            </div>
+        </div>
+    </div>
 
-## Pricing and Plans
+    <div class="comparison-section">
+        <h2>📊 Competitive Analysis</h2>
+        <p>When evaluating <strong>{title}</strong>, consider these key differentiators:</p>
 
-Most {category.lower()} solutions offer flexible pricing tiers to accommodate different business sizes:
+        <h3>✅ Strengths</h3>
+        <ul>
+            <li><strong>Comprehensive feature set</strong> that covers all business needs</li>
+            <li><strong>Excellent user experience</strong> with intuitive design</li>
+            <li><strong>Strong customer support</strong> with responsive service team</li>
+            <li><strong>Regular updates</strong> and continuous feature improvements</li>
+            <li><strong>Competitive pricing</strong> with transparent cost structure</li>
+        </ul>
 
-### Starter Plan
-- **Price**: Starting at $29/month
-- **Best For**: Small teams and startups
-- **Features**: Core functionality with essential features
+        <h3>⚠️ Considerations</h3>
+        <ul>
+            <li><strong>Learning curve</strong> for advanced features may require training</li>
+            <li><strong>Premium features</strong> may require higher-tier subscription plans</li>
+            <li><strong>Customization options</strong> might be limited in basic plans</li>
+        </ul>
+    </div>
 
-### Professional Plan  
-- **Price**: Starting at $79/month
-- **Best For**: Growing businesses and medium teams
-- **Features**: Advanced features with enhanced capabilities
+    <div class="use-cases-section">
+        <h2>🎯 Use Cases and Applications</h2>
 
-### Enterprise Plan
-- **Price**: Starting at $199/month
-- **Best For**: Large organizations with complex needs
-- **Features**: Full feature access with premium support
+        <h3>For Small Businesses</h3>
+        <ul>
+            <li>Streamlined operations with automated workflows</li>
+            <li>Cost-effective solution that grows with your business</li>
+            <li>Quick implementation with minimal setup requirements</li>
+            <li>Essential features without unnecessary complexity</li>
+        </ul>
 
-## Competitive Analysis
+        <h3>For Enterprise Organizations</h3>
+        <ul>
+            <li>Advanced reporting and analytics capabilities</li>
+            <li>Enhanced security features and compliance tools</li>
+            <li>Custom integrations with existing business systems</li>
+            <li>Dedicated support and account management</li>
+        </ul>
+    </div>
 
-When evaluating {title}, consider these key differentiators:
+    <div class="implementation-section">
+        <h2>🚀 Implementation and Getting Started</h2>
+        
+        <h3>Step 1: Assessment</h3>
+        <p>Evaluate your current {category.lower()} needs and identify key requirements for your business.</p>
 
-### Strengths
-✅ **Comprehensive feature set** that covers all business needs
-✅ **Excellent user experience** with intuitive design
-✅ **Strong customer support** with responsive service team
-✅ **Regular updates** and continuous feature improvements
-✅ **Competitive pricing** with transparent cost structure
+        <h3>Step 2: Trial Period</h3>
+        <p>Take advantage of free trials to test functionality and user experience with your team.</p>
+        
+        <div class="trial-cta" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+            <p><strong>Ready to try it yourself?</strong></p>
+            <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: #28a745; color: white; padding: 12px 25px; border-radius: 6px; text-decoration: none; font-weight: bold;">Start Your Free Trial Today →</a>
+        </div>
 
-### Considerations
-⚠️ **Learning curve** for advanced features may require training
-⚠️ **Premium features** may require higher-tier subscription plans
-⚠️ **Customization options** might be limited in basic plans
+        <h3>Step 3: Migration Planning</h3>
+        <p>Develop a comprehensive plan for transitioning from existing solutions to minimize disruption.</p>
 
-## Use Cases and Applications
+        <h3>Step 4: Training and Adoption</h3>
+        <p>Ensure proper training for your team to maximize the value of your new {category.lower()} solution.</p>
+    </div>
 
-### For Small Businesses
-- Streamlined operations with automated workflows
-- Cost-effective solution that grows with your business
-- Quick implementation with minimal setup requirements
-- Essential features without unnecessary complexity
+    <div class="roi-section">
+        <h2>💹 ROI and Business Impact</h2>
+        <p>Investing in quality <strong>{category.lower()}</strong> software typically delivers:</p>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
+            <div style="background: #e8f5e8; padding: 15px; border-radius: 6px; text-align: center;">
+                <h4 style="color: #28a745; margin: 0;">25-40%</h4>
+                <p style="margin: 5px 0 0 0; font-size: 14px;">Improvement in operational efficiency</p>
+            </div>
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; text-align: center;">
+                <h4 style="color: #1976d2; margin: 0;">10-15 hours</h4>
+                <p style="margin: 5px 0 0 0; font-size: 14px;">Saved per week per employee</p>
+            </div>
+            <div style="background: #fff3e0; padding: 15px; border-radius: 6px; text-align: center;">
+                <h4 style="color: #f57c00; margin: 0;">Better</h4>
+                <p style="margin: 5px 0 0 0; font-size: 14px;">Decision making through data visibility</p>
+            </div>
+            <div style="background: #fce4ec; padding: 15px; border-radius: 6px; text-align: center;">
+                <h4 style="color: #c2185b; margin: 0;">Enhanced</h4>
+                <p style="margin: 5px 0 0 0; font-size: 14px;">Customer satisfaction</p>
+            </div>
+        </div>
+    </div>
 
-### For Enterprise Organizations
-- Advanced reporting and analytics capabilities
-- Enhanced security features and compliance tools
-- Custom integrations with existing business systems
-- Dedicated support and account management
+    <div class="conclusion-section">
+        <h2>🎯 Final Recommendation</h2>
+        <p><strong>{title}</strong> stands out as a leading solution in the <strong>{category}</strong> space. With its robust feature set, competitive pricing, and excellent support, it's an excellent choice for businesses looking to improve their operations and drive growth.</p>
 
-## Implementation and Getting Started
+        <p>Whether you're a small startup or a large enterprise, <strong>{title}</strong> offers the flexibility and power to meet your specific needs. The investment in quality {category.lower()} software pays dividends through improved efficiency, better collaboration, and enhanced business outcomes.</p>
+        
+        <div class="final-cta" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); color: white; padding: 30px; border-radius: 10px; margin: 30px 0; text-align: center;">
+            <h3 style="margin: 0 0 15px 0; color: white;">🎉 Special Offer Available</h3>
+            <p style="margin: 0 0 20px 0; font-size: 18px;">Get started today and join thousands of businesses already benefiting from this solution.</p>
+            <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: white; color: #ff6b6b; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">Claim Your Free Trial →</a>
+            <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.9;">No credit card required • Cancel anytime</p>
+        </div>
+    </div>
 
-### Step 1: Assessment
-Evaluate your current {category.lower()} needs and identify key requirements for your business.
+    <div class="next-steps-section">
+        <h2>🚀 Next Steps</h2>
+        <p>Ready to get started with <strong>{title}</strong>? Here's what to do next:</p>
 
-### Step 2: Trial Period
-Take advantage of free trials to test functionality and user experience with your team.
+        <ol>
+            <li><strong><a href="{affiliate_data['primary']}" target="_blank" rel="noopener">Sign up for a free trial</a></strong> to test the features</li>
+            <li><strong>Schedule a demo</strong> with their sales team for personalized guidance</li>
+            <li><strong>Compare pricing plans</strong> to find the best fit for your budget</li>
+            <li><strong>Read customer reviews</strong> to understand real-world experiences</li>
+            <li><strong>Contact their support team</strong> with any questions</li>
+        </ol>
 
-### Step 3: Migration Planning
-Develop a comprehensive plan for transitioning from existing solutions to minimize disruption.
+        <p>For more information about <strong>{title}</strong> and other {category.lower()} solutions, explore our comprehensive reviews and comparison guides.</p>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
+            <p><strong>💡 Pro Tip:</strong> Many {category.lower()} tools offer free trials or freemium plans. Take advantage of these to test multiple solutions before making your final decision.</p>
+        </div>
+    </div>
 
-### Step 4: Training and Adoption
-Ensure proper training for your team to maximize the value of your new {category.lower()} solution.
-
-## ROI and Business Impact
-
-Investing in quality {category.lower()} software typically delivers:
-
-- **25-40% improvement** in operational efficiency
-- **Reduced manual work** saving 10-15 hours per week per employee
-- **Better decision making** through improved data visibility
-- **Enhanced customer satisfaction** through streamlined processes
-
-## Final Recommendation
-
-{title} stands out as a leading solution in the {category} space. With its robust feature set, competitive pricing, and excellent support, it's an excellent choice for businesses looking to improve their operations and drive growth.
-
-Whether you're a small startup or a large enterprise, {title} offers the flexibility and power to meet your specific needs. The investment in quality {category.lower()} software pays dividends through improved efficiency, better collaboration, and enhanced business outcomes.
-
-## Next Steps
-
-Ready to get started with {title}? Here's what to do next:
-
-1. **Sign up for a free trial** to test the features
-2. **Schedule a demo** with their sales team for personalized guidance
-3. **Compare pricing plans** to find the best fit for your budget
-4. **Read customer reviews** to understand real-world experiences
-5. **Contact their support team** with any questions
-
-For more information about {title} and other {category.lower()} solutions, explore our comprehensive reviews and comparison guides.
-
----
-
-*This review is based on current market analysis and feature comparisons. Pricing and features may change. Always verify current information with the vendor before making purchasing decisions.*
+    <div class="disclaimer-section" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6; color: #6c757d; font-size: 14px;">
+        <p><em>This review is based on current market analysis and feature comparisons. Pricing and features may change. Always verify current information with the vendor before making purchasing decisions. Some links in this article are affiliate links, which means we may earn a commission if you make a purchase through them at no additional cost to you.</em></p>
+    </div>
+</div>
 """
 
-    excerpt = f"Comprehensive guide to {title} covering features, pricing, benefits, and use cases. Find out if this {category.lower()} solution is right for your business needs."
+    excerpt = f"Comprehensive guide to {title} covering features, pricing, benefits, and use cases. Find out if this {category.lower()} solution is right for your business needs. Includes exclusive trial offers and pricing comparisons."
     
     return content, excerpt
 
@@ -237,88 +363,48 @@ async def get_blog_post(slug: str):
         logging.error(f"Error fetching post: {e}")
         raise HTTPException(status_code=404, detail="Blog post not found")
 
-@api_router.post("/blog/quick-generate")
-async def quick_generate_articles(count: int = 15):
-    """EMERGENCY: Generate articles with immediate content (no AI delays)"""
+@api_router.post("/blog/update-content")
+async def update_existing_content(count: int = 20):
+    """FIXED: Update existing posts with HTML content and affiliate links"""
     
-    topics = [
-        "Best CRM Software for Small Business 2025",
-        "Top Project Management Tools Comparison", 
-        "Email Marketing Automation Platforms Review",
-        "Analytics Tools for Data-Driven Decisions",
-        "Design Software for Non-Designers Guide",
-        "Development Tools for Modern Teams",
-        "Customer Support Solutions Comparison", 
-        "Accounting Software for Freelancers",
-        "HR Management Systems Review",
-        "Social Media Management Tools Guide",
-        "E-commerce Platform Showdown 2025",
-        "Sales Automation Software Review",
-        "Marketing Automation Best Practices",
-        "Cloud Storage Solutions Compared",
-        "Cybersecurity Tools for Small Business",
-        "Productivity Apps That Actually Work",
-        "Team Communication Platforms Guide",
-        "Business Intelligence Tools Review",
-        "Content Management Systems Comparison",
-        "SEO Tools for Better Rankings 2025"
-    ]
-    
-    categories = [
-        "CRM Software", "Project Management", "Email Marketing", "Analytics Tools",
-        "Design Tools", "Development Tools", "Customer Support", "Accounting Software", 
-        "HR Management", "Social Media Management", "E-commerce Platforms", "Sales Tools",
-        "Marketing Automation", "Cloud Storage", "Security Tools", "Productivity Apps",
-        "Communication Tools", "Business Intelligence", "Content Management", "SEO Tools"
-    ]
-    
-    generated_count = 0
-    
-    for i in range(min(count, len(topics))):
-        topic = topics[i]
-        category = categories[i] if i < len(categories) else "SaaS Tools"
-        tags = topic.lower().replace(",", "").split()[:5]
+    try:
+        # Get existing posts with old content
+        posts = await db.blog_posts.find().limit(count).to_list(count)
+        updated_count = 0
         
-        try:
-            # Generate immediate content (no AI delays)
-            content, excerpt = generate_immediate_content(topic, category, tags)
-            slug = topic.lower().replace(" ", "-").replace(",", "").replace(":", "")
-            
-            # Check if post already exists
-            existing_post = await db.blog_posts.find_one({"slug": slug})
-            if existing_post:
-                # Update existing post with real content
+        for post in posts:
+            try:
+                # Generate new HTML content with affiliate links
+                content, excerpt = generate_html_content_with_affiliates(
+                    post['title'], 
+                    post.get('category', 'SaaS Tools'), 
+                    post.get('tags', [])
+                )
+                
+                # Update the post
                 await db.blog_posts.update_one(
-                    {"slug": slug},
+                    {"_id": post["_id"]},
                     {"$set": {
                         "content": content,
                         "excerpt": excerpt,
                         "updated_at": datetime.utcnow()
                     }}
                 )
-            else:
-                # Create new post
-                post_dict = {
-                    "title": topic,
-                    "slug": slug,
-                    "content": content,
-                    "excerpt": excerpt,
-                    "featured_image": "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800",
-                    "category": category,
-                    "tags": tags,
-                    "author": "AI Board"
-                }
                 
-                post_obj = BlogPost(**post_dict)
-                await db.blog_posts.insert_one(post_obj.dict())
-            
-            generated_count += 1
-            
-        except Exception as e:
-            logging.error(f"Error generating article '{topic}': {e}")
-            continue
-    
-    return {"message": f"Successfully generated {generated_count} articles with real content!"}
+                updated_count += 1
+                
+            except Exception as e:
+                logging.error(f"Error updating post '{post.get('title', 'unknown')}': {e}")
+                continue
+        
+        return {
+            "message": f"Successfully updated {updated_count} posts with HTML content and affiliate links!",
+            "updated_count": updated_count
+        }
+        
+    except Exception as e:
+        logging.error(f"Error in content update: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update content")
 
 @api_router.get("/stats")
 async def get_stats():
