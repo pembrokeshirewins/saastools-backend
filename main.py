@@ -313,6 +313,9 @@ async def get_stats():
 
 # Include router and middleware
 app.include_router(api_router)
+@app.get("/")
+async def main_root():
+    return {"message": "Welcome to SaasTools.digital", "docs": "/docs", "api": "/api/"}
 
 app.add_middleware(
     CORSMiddleware,
