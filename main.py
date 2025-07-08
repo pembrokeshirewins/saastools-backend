@@ -185,123 +185,11 @@ def generate_html_content_with_affiliates(title: str, category: str, tags: List[
         </div>
     </div>
 
-    <div class="comparison-section">
-        <h2>📊 Competitive Analysis</h2>
-        <p>When evaluating <strong>{title}</strong>, consider these key differentiators:</p>
-
-        <h3>✅ Strengths</h3>
-        <ul>
-            <li><strong>Comprehensive feature set</strong> that covers all business needs</li>
-            <li><strong>Excellent user experience</strong> with intuitive design</li>
-            <li><strong>Strong customer support</strong> with responsive service team</li>
-            <li><strong>Regular updates</strong> and continuous feature improvements</li>
-            <li><strong>Competitive pricing</strong> with transparent cost structure</li>
-        </ul>
-
-        <h3>⚠️ Considerations</h3>
-        <ul>
-            <li><strong>Learning curve</strong> for advanced features may require training</li>
-            <li><strong>Premium features</strong> may require higher-tier subscription plans</li>
-            <li><strong>Customization options</strong> might be limited in basic plans</li>
-        </ul>
-    </div>
-
-    <div class="use-cases-section">
-        <h2>🎯 Use Cases and Applications</h2>
-
-        <h3>For Small Businesses</h3>
-        <ul>
-            <li>Streamlined operations with automated workflows</li>
-            <li>Cost-effective solution that grows with your business</li>
-            <li>Quick implementation with minimal setup requirements</li>
-            <li>Essential features without unnecessary complexity</li>
-        </ul>
-
-        <h3>For Enterprise Organizations</h3>
-        <ul>
-            <li>Advanced reporting and analytics capabilities</li>
-            <li>Enhanced security features and compliance tools</li>
-            <li>Custom integrations with existing business systems</li>
-            <li>Dedicated support and account management</li>
-        </ul>
-    </div>
-
-    <div class="implementation-section">
-        <h2>🚀 Implementation and Getting Started</h2>
-        
-        <h3>Step 1: Assessment</h3>
-        <p>Evaluate your current {category.lower()} needs and identify key requirements for your business.</p>
-
-        <h3>Step 2: Trial Period</h3>
-        <p>Take advantage of free trials to test functionality and user experience with your team.</p>
-        
-        <div class="trial-cta" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
-            <p><strong>Ready to try it yourself?</strong></p>
-            <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: #28a745; color: white; padding: 12px 25px; border-radius: 6px; text-decoration: none; font-weight: bold;">Start Your Free Trial Today →</a>
-        </div>
-
-        <h3>Step 3: Migration Planning</h3>
-        <p>Develop a comprehensive plan for transitioning from existing solutions to minimize disruption.</p>
-
-        <h3>Step 4: Training and Adoption</h3>
-        <p>Ensure proper training for your team to maximize the value of your new {category.lower()} solution.</p>
-    </div>
-
-    <div class="roi-section">
-        <h2>💹 ROI and Business Impact</h2>
-        <p>Investing in quality <strong>{category.lower()}</strong> software typically delivers:</p>
-        
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
-            <div style="background: #e8f5e8; padding: 15px; border-radius: 6px; text-align: center;">
-                <h4 style="color: #28a745; margin: 0;">25-40%</h4>
-                <p style="margin: 5px 0 0 0; font-size: 14px;">Improvement in operational efficiency</p>
-            </div>
-            <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; text-align: center;">
-                <h4 style="color: #1976d2; margin: 0;">10-15 hours</h4>
-                <p style="margin: 5px 0 0 0; font-size: 14px;">Saved per week per employee</p>
-            </div>
-            <div style="background: #fff3e0; padding: 15px; border-radius: 6px; text-align: center;">
-                <h4 style="color: #f57c00; margin: 0;">Better</h4>
-                <p style="margin: 5px 0 0 0; font-size: 14px;">Decision making through data visibility</p>
-            </div>
-            <div style="background: #fce4ec; padding: 15px; border-radius: 6px; text-align: center;">
-                <h4 style="color: #c2185b; margin: 0;">Enhanced</h4>
-                <p style="margin: 5px 0 0 0; font-size: 14px;">Customer satisfaction</p>
-            </div>
-        </div>
-    </div>
-
-    <div class="conclusion-section">
-        <h2>🎯 Final Recommendation</h2>
-        <p><strong>{title}</strong> stands out as a leading solution in the <strong>{category}</strong> space. With its robust feature set, competitive pricing, and excellent support, it's an excellent choice for businesses looking to improve their operations and drive growth.</p>
-
-        <p>Whether you're a small startup or a large enterprise, <strong>{title}</strong> offers the flexibility and power to meet your specific needs. The investment in quality {category.lower()} software pays dividends through improved efficiency, better collaboration, and enhanced business outcomes.</p>
-        
-        <div class="final-cta" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); color: white; padding: 30px; border-radius: 10px; margin: 30px 0; text-align: center;">
-            <h3 style="margin: 0 0 15px 0; color: white;">🎉 Special Offer Available</h3>
-            <p style="margin: 0 0 20px 0; font-size: 18px;">Get started today and join thousands of businesses already benefiting from this solution.</p>
-            <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: white; color: #ff6b6b; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">Claim Your Free Trial →</a>
-            <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.9;">No credit card required • Cancel anytime</p>
-        </div>
-    </div>
-
-    <div class="next-steps-section">
-        <h2>🚀 Next Steps</h2>
-        <p>Ready to get started with <strong>{title}</strong>? Here's what to do next:</p>
-
-        <ol>
-            <li><strong><a href="{affiliate_data['primary']}" target="_blank" rel="noopener">Sign up for a free trial</a></strong> to test the features</li>
-            <li><strong>Schedule a demo</strong> with their sales team for personalized guidance</li>
-            <li><strong>Compare pricing plans</strong> to find the best fit for your budget</li>
-            <li><strong>Read customer reviews</strong> to understand real-world experiences</li>
-            <li><strong>Contact their support team</strong> with any questions</li>
-        </ol>
-
-        <p>For more information about <strong>{title}</strong> and other {category.lower()} solutions, explore our comprehensive reviews and comparison guides.</p>
-        
-        <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #28a745;">
-            <p><strong>💡 Pro Tip:</strong> Many {category.lower()} tools offer free trials or freemium plans. Take advantage of these to test multiple solutions before making your final decision.</p>
-        </div>
+    <div class="final-cta" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); color: white; padding: 30px; border-radius: 10px; margin: 30px 0; text-align: center;">
+        <h3 style="margin: 0 0 15px 0; color: white;">🎉 Ready to Get Started?</h3>
+        <p style="margin: 0 0 20px 0; font-size: 18px;">Join thousands of businesses already benefiting from this solution.</p>
+        <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: white; color: #ff6b6b; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">Get Started Now →</a>
+        <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.9;">No credit card required • Cancel anytime</p>
     </div>
 
     <div class="disclaimer-section" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6; color: #6c757d; font-size: 14px;">
@@ -310,7 +198,7 @@ def generate_html_content_with_affiliates(title: str, category: str, tags: List[
 </div>
 """
 
-    excerpt = f"Comprehensive guide to {title} covering features, pricing, benefits, and use cases. Find out if this {category.lower()} solution is right for your business needs. Includes exclusive trial offers and pricing comparisons."
+    excerpt = f"Comprehensive guide to {title} covering features, pricing, benefits, and use cases. Find out if this {category.lower()} solution is right for your business needs."
     
     return content, excerpt
 
@@ -343,26 +231,16 @@ async def get_tools(
     tools = await db.saas_tools.find(query).skip(skip).limit(limit).to_list(limit)
     return [SaaSTool(**tool) for tool in tools]
 
+# FIXED: Correct endpoint order - specific endpoints BEFORE generic {slug}
 @api_router.get("/blog", response_model=List[BlogPost])
 async def get_blog_posts(limit: int = Query(10, le=50), skip: int = 0):
-    """FIXED: Non-blocking blog post retrieval"""
+    """Get all blog posts"""
     try:
         posts = await db.blog_posts.find().sort("published_at", -1).skip(skip).limit(limit).to_list(limit)
         return [BlogPost(**post) for post in posts]
     except Exception as e:
         logging.error(f"Error fetching posts: {e}")
         return []
-
-@api_router.get("/blog/{slug}", response_model=BlogPost)
-async def get_blog_post(slug: str):
-    try:
-        post = await db.blog_posts.find_one({"slug": slug})
-        if not post:
-            raise HTTPException(status_code=404, detail="Blog post not found")
-        return BlogPost(**post)
-    except Exception as e:
-        logging.error(f"Error fetching post: {e}")
-        raise HTTPException(status_code=404, detail="Blog post not found")
 
 @api_router.post("/blog/bulk-generate")
 async def bulk_generate_blog_posts():
@@ -447,7 +325,7 @@ async def bulk_generate_blog_posts():
 
 @api_router.post("/blog/update-content")
 async def update_existing_content(count: int = 20):
-    """FIXED: Update existing posts with HTML content and affiliate links"""
+    """Update existing posts with HTML content and affiliate links"""
     
     try:
         # Get existing posts with old content
@@ -487,6 +365,18 @@ async def update_existing_content(count: int = 20):
     except Exception as e:
         logging.error(f"Error in content update: {e}")
         raise HTTPException(status_code=500, detail="Failed to update content")
+
+# IMPORTANT: Generic {slug} endpoint MUST be last
+@api_router.get("/blog/{slug}", response_model=BlogPost)
+async def get_blog_post(slug: str):
+    try:
+        post = await db.blog_posts.find_one({"slug": slug})
+        if not post:
+            raise HTTPException(status_code=404, detail="Blog post not found")
+        return BlogPost(**post)
+    except Exception as e:
+        logging.error(f"Error fetching post: {e}")
+        raise HTTPException(status_code=404, detail="Blog post not found")
 
 @api_router.get("/stats")
 async def get_stats():
