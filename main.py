@@ -1,49 +1,64 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import logging
+from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime
-import logging
 import asyncio
+from openai import OpenAI
+from slugify import slugify
+import json
+import re
+import random
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
-mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ.get('DB_NAME', 'saastools_db')]
+db = client[os.environ['DB_NAME']]
 
-# OpenAI setup - with fallback
-try:
-    from openai import OpenAI
-    openai_client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
-    AI_ENABLED = True
-except Exception as e:
-    logging.warning(f"OpenAI not available: {e}")
-    AI_ENABLED = False
+# OpenAI client - Updated to handle API key properly
+openai_client = None
+AI_ENABLED = False
+if os.environ.get('OPENAI_API_KEY'):
+    try:
+        openai_client = OpenAI(api_key=os.environ.get('OPENAI_API_KEY'))
+        AI_ENABLED = True
+    except Exception as e:
+        logging.error(f"OpenAI initialization failed: {e}")
+        AI_ENABLED = False
 
-app = FastAPI(title="SaasTools.digital API", version="1.0.0")
+# Create the main app
+app = FastAPI(
+    title="SaaS Tools Digital API",
+    description="AI-powered SaaS tools discovery and content platform",
+    version="1.0.0"
+)
+
+# Create API router
 api_router = APIRouter(prefix="/api")
 
-# Models
+# Data Models
 class SaaSTool(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
-    description: str
-    short_description: str
     category: str
-    logo_url: str
-    website_url: str
-    pricing_type: str
-    pricing_details: str
+    description: str
+    pricing: str
     features: List[str]
     pros: List[str]
     cons: List[str]
-    rating: float = Field(ge=0, le=5)
-    tags: List[str]
-    affiliate_link: Optional[str] = None
-    ai_generated_review: str
+    rating: float
+    affiliate_link: str
+    logo_url: str
+    website_url: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -53,159 +68,334 @@ class BlogPost(BaseModel):
     slug: str
     content: str
     excerpt: str
-    featured_image: str
-    category: str = "SaaS Guide"
+    category: str
     tags: List[str]
-    author: str = "AI Board"
-    published_at: datetime = Field(default_factory=datetime.utcnow)
+    featured_image: str
+    meta_title: str
+    meta_description: str
+    author: str = "SaaS Tools Team"
+    published: bool = True
+    featured: bool = False
+    views: int = 0
+    affiliate_links: List[Dict[str, str]] = []
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class NewsletterSubscription(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    email: str
+    name: Optional[str] = None
+    subscribed_at: datetime = Field(default_factory=datetime.utcnow)
+    active: bool = True
+
+class BlogPostCreate(BaseModel):
+    title: str
+    category: str
+    tags: List[str] = []
+    generate_content: bool = True
+
+class BlogPostUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    published: Optional[bool] = None
+    featured: Optional[bool] = None
 
 # Affiliate link generator
 def get_affiliate_links(category: str, tool_name: str = "") -> dict:
     """Generate affiliate links based on category and tool"""
+    base_links = {
+        "mailmodo": "https://www.mailmodo.com/?fpr=adrian55",
+        "cj_affiliate": "https://www.cj.com/advertiser-signup"
+    }
     
-    # Common affiliate programs (replace with real affiliate IDs)
-    affiliate_links = {
-        "CRM Software": {
-            "primary": "https://hubspot.sjv.io/c/5416786/1999432/12893",  # HubSpot
-            "secondary": "https://salesforce.partners/affiliate-link",
-            "text": "Get started with HubSpot CRM (Free Forever)"
+    # Category-specific affiliate opportunities
+    category_links = {
+        "Marketing": {
+            "mailchimp": "https://mailchimp.com/pricing/",
+            "hubspot": "https://www.hubspot.com/pricing",
+            "convertkit": "https://convertkit.com/pricing"
         },
-        "Project Management": {
-            "primary": "https://try.monday.com/?utm_medium=affiliate&utm_source=saastools",
-            "secondary": "https://asana.com/?ref=saastools",
-            "text": "Try Monday.com - 14 Day Free Trial"
+        "Sales": {
+            "salesforce": "https://www.salesforce.com/pricing/",
+            "pipedrive": "https://www.pipedrive.com/pricing",
+            "hubspot_crm": "https://www.hubspot.com/pricing/crm"
         },
-        "Email Marketing": {
-            "primary": "https://www.mailmodo.com/?fpr=adrian55",  # Your Mailmodo affiliate
-            "secondary": "https://convertkit.com/?ref=saastools",
-            "text": "Start with Mailmodo - Interactive Email Platform"
-        },
-        "Analytics Tools": {
-            "primary": "https://analytics.google.com/analytics/web/",
-            "secondary": "https://mixpanel.com/?ref=saastools",
-            "text": "Get Google Analytics (Free)"
-        },
-        "Design Tools": {
-            "primary": "https://partner.canva.com/c/5416786/647168/10068",
-            "secondary": "https://figma.com/?ref=saastools",
-            "text": "Try Canva Pro - 30 Day Free Trial"
-        },
-        "default": {
-            "primary": "https://www.mailmodo.com/?fpr=adrian55",
-            "secondary": "https://cj.affiliate.com/link",
-            "text": "Learn More"
+        "Productivity": {
+            "asana": "https://asana.com/pricing",
+            "monday": "https://monday.com/pricing",
+            "notion": "https://www.notion.so/pricing"
         }
     }
     
-    return affiliate_links.get(category, affiliate_links["default"])
+    links = base_links.copy()
+    if category in category_links:
+        links.update(category_links[category])
+    
+    return links
 
-# FIXED: HTML content generation with affiliate links
+# Enhanced content generation with affiliate links
 def generate_html_content_with_affiliates(title: str, category: str, tags: List[str]) -> tuple:
-    """Generate HTML content with proper formatting and affiliate links"""
+    """Generate rich HTML content with integrated affiliate links"""
     
-    # Get affiliate links for this category
-    affiliate_data = get_affiliate_links(category, title)
+    affiliate_links = get_affiliate_links(category)
     
-    # Create comprehensive HTML content with affiliate integration
-    content = f"""
-<div class="blog-content">
-    <h1>{title}</h1>
-
-    <div class="intro-section">
-        <h2>Introduction</h2>
-        <p>In today's competitive business landscape, finding the right <strong>{category.lower()}</strong> solution is crucial for success. This comprehensive guide to <strong>{title}</strong> will help you understand the key features, benefits, pricing, and use cases to make an informed decision for your business.</p>
+    # Generate unique, category-specific content
+    category_data = {
+        "Marketing": {
+            "pain_points": "low conversion rates, poor lead quality, ineffective email campaigns",
+            "solutions": ["email marketing automation", "lead scoring", "A/B testing", "customer segmentation"],
+            "roi_metrics": "300% increase in lead conversion, 45% reduction in CAC",
+            "tools": ["Mailmodo", "HubSpot", "Mailchimp", "ConvertKit"],
+            "price_range": "$29-$299/month"
+        },
+        "Sales": {
+            "pain_points": "lost leads, poor pipeline visibility, manual data entry",
+            "solutions": ["CRM automation", "pipeline management", "lead tracking", "sales forecasting"],
+            "roi_metrics": "40% increase in sales velocity, 60% improvement in close rates",
+            "tools": ["Salesforce", "Pipedrive", "HubSpot CRM", "Zoho CRM"],
+            "price_range": "$25-$150/month"
+        },
+        "Productivity": {
+            "pain_points": "missed deadlines, poor team coordination, scattered workflows",
+            "solutions": ["project management", "task automation", "team collaboration", "time tracking"],
+            "roi_metrics": "35% improvement in project delivery, 50% reduction in missed deadlines",
+            "tools": ["Asana", "Monday.com", "Notion", "ClickUp"],
+            "price_range": "$8-$24/month"
+        }
+    }
+    
+    # Get category-specific data or use default
+    data = category_data.get(category, {
+        "pain_points": "operational inefficiencies, high costs, poor scalability",
+        "solutions": ["automation", "integration", "analytics", "optimization"],
+        "roi_metrics": "250% ROI improvement, 40% cost reduction",
+        "tools": ["Premium Solution", "Business Pro", "Enterprise Suite"],
+        "price_range": "$50-$200/month"
+    })
+    
+    # Generate comprehensive HTML content
+    html_content = f"""
+    <article class="blog-content">
+        <h1>{title}</h1>
         
-        <div class="cta-box" style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #007bff;">
-            <p><strong>🚀 Quick Start:</strong> <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="color: #007bff; font-weight: bold;">{affiliate_data['text']}</a></p>
+        <div class="intro-section">
+            <p>In 2025, businesses struggling with <strong>{data['pain_points']}</strong> are losing millions in potential revenue. This comprehensive guide reveals the top {category.lower()} solutions that deliver measurable results and maximum ROI.</p>
         </div>
-    </div>
-
-    <div class="overview-section">
-        <h2>What is {title}?</h2>
-        <p><strong>{title}</strong> represents cutting-edge solutions in the <strong>{category}</strong> space. These tools are designed to streamline operations, improve efficiency, and drive business growth through advanced features and intuitive interfaces.</p>
         
-        <p>Whether you're a small startup looking to optimize your workflows or a large enterprise seeking to scale your operations, the right {category.lower()} solution can transform how your business operates.</p>
-    </div>
-
-    <div class="features-section">
-        <h2>Key Features and Benefits</h2>
+        <h2>The Business Impact of {category} Tools</h2>
+        <p>Companies using advanced {category.lower()} platforms report <strong>{data['roi_metrics']}</strong>. The right solution can transform your operations and drive sustainable growth.</p>
         
-        <h3>🎯 Advanced Functionality</h3>
+        <div class="cta-box">
+            <h3>🚀 Ready to Transform Your {category} Strategy?</h3>
+            <p>Start with <a href="{affiliate_links['mailmodo']}" target="_blank" rel="noopener sponsored">Mailmodo's powerful platform</a> and see immediate improvements in your metrics. <strong>Try free for 21 days!</strong></p>
+        </div>
+        
+        <h2>Top {category} Solutions: Complete Analysis</h2>
+        <div class="comparison-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Solution</th>
+                        <th>Best For</th>
+                        <th>Pricing</th>
+                        <th>ROI Potential</th>
+                        <th>Rating</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>{data['tools'][0]}</strong></td>
+                        <td>Enterprise Teams</td>
+                        <td>{data['price_range']}</td>
+                        <td>450% ROI</td>
+                        <td>⭐⭐⭐⭐⭐ (4.8/5)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{data['tools'][1]}</strong></td>
+                        <td>Growing Businesses</td>
+                        <td>{data['price_range']}</td>
+                        <td>380% ROI</td>
+                        <td>⭐⭐⭐⭐⭐ (4.7/5)</td>
+                    </tr>
+                    <tr>
+                        <td><strong>{data['tools'][2]}</strong></td>
+                        <td>Small Teams</td>
+                        <td>{data['price_range']}</td>
+                        <td>320% ROI</td>
+                        <td>⭐⭐⭐⭐ (4.5/5)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <h2>Key Features That Drive Results</h2>
         <ul>
-            <li><strong>Professional-grade capabilities</strong> that meet enterprise standards</li>
-            <li><strong>User-friendly interface</strong> with intuitive design and minimal learning curve</li>
-            <li><strong>Comprehensive feature set</strong> covering all essential business needs</li>
-            <li><strong>Excellent customer support</strong> with 24/7 availability and expert assistance</li>
-        </ul>
-
-        <h3>💼 Business Impact</h3>
-        <ul>
-            <li><strong>Increased Productivity:</strong> Streamline workflows and eliminate manual processes</li>
-            <li><strong>Better Collaboration:</strong> Enable seamless teamwork across departments</li>
-            <li><strong>Cost Efficiency:</strong> Reduce operational costs while improving output quality</li>
-            <li><strong>Scalable Growth:</strong> Solutions that grow with your business needs</li>
+            <li><strong>{data['solutions'][0].title()}</strong> - Essential for scalable operations</li>
+            <li><strong>{data['solutions'][1].title()}</strong> - Critical for ROI optimization</li>
+            <li><strong>{data['solutions'][2].title()}</strong> - Key for competitive advantage</li>
+            <li><strong>{data['solutions'][3].title()}</strong> - Vital for long-term success</li>
         </ul>
         
-        <div class="affiliate-banner" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 10px; margin: 30px 0; text-align: center;">
-            <h4 style="margin: 0 0 15px 0; color: white;">⭐ Recommended Solution</h4>
-            <p style="margin: 0 0 15px 0; font-size: 16px;">Get started with the top-rated {category.lower()} platform trusted by thousands of businesses.</p>
-            <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: white; color: #667eea; padding: 12px 25px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">Start Free Trial →</a>
+        <h2>Implementation Strategy</h2>
+        <ol>
+            <li><strong>Assessment:</strong> Evaluate current {category.lower()} processes</li>
+            <li><strong>Selection:</strong> Choose based on ROI potential and scalability</li>
+            <li><strong>Pilot:</strong> Test with a small team first</li>
+            <li><strong>Training:</strong> Ensure proper team adoption</li>
+            <li><strong>Optimization:</strong> Monitor and refine for best results</li>
+        </ol>
+        
+        <div class="affiliate-banner">
+            <h3>💰 Maximize Your Investment</h3>
+            <p>Join 50,000+ businesses achieving breakthrough results. <a href="{affiliate_links['cj_affiliate']}" target="_blank" rel="noopener sponsored">Explore premium solutions</a> and start your transformation today!</p>
         </div>
-    </div>
-
-    <div class="pricing-section">
-        <h2>💰 Pricing and Plans</h2>
-        <p>Most <strong>{category.lower()}</strong> solutions offer flexible pricing tiers to accommodate different business sizes:</p>
-
-        <div class="pricing-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 25px 0;">
-            <div style="border: 1px solid #e9ecef; border-radius: 8px; padding: 20px;">
-                <h3 style="color: #28a745;">💡 Starter Plan</h3>
-                <p><strong>Price:</strong> Starting at $29/month</p>
-                <p><strong>Best For:</strong> Small teams and startups</p>
-                <p><strong>Features:</strong> Core functionality with essential features</p>
+        
+        <h2>ROI Analysis: Real Numbers</h2>
+        <div class="pricing-grid">
+            <div class="price-card">
+                <h4>Small Business</h4>
+                <div class="price">$15K - $50K</div>
+                <p class="savings">Annual Value Creation</p>
+                <ul>
+                    <li>Time savings: 25-35 hours/week</li>
+                    <li>Error reduction: 65%</li>
+                    <li>Efficiency gain: +50%</li>
+                </ul>
             </div>
-            
-            <div style="border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; border-color: #007bff; border-width: 2px;">
-                <h3 style="color: #007bff;">🚀 Professional Plan</h3>
-                <p><strong>Price:</strong> Starting at $79/month</p>
-                <p><strong>Best For:</strong> Growing businesses and medium teams</p>
-                <p><strong>Features:</strong> Advanced features with enhanced capabilities</p>
-                <div style="margin-top: 15px;">
-                    <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: #007bff; color: white; padding: 8px 16px; border-radius: 4px; text-decoration: none; font-size: 14px;">Most Popular →</a>
-                </div>
-            </div>
-            
-            <div style="border: 1px solid #e9ecef; border-radius: 8px; padding: 20px;">
-                <h3 style="color: #6c757d;">🏢 Enterprise Plan</h3>
-                <p><strong>Price:</strong> Starting at $199/month</p>
-                <p><strong>Best For:</strong> Large organizations with complex needs</p>
-                <p><strong>Features:</strong> Full feature access with premium support</p>
+            <div class="price-card featured">
+                <h4>Enterprise</h4>
+                <div class="price">$500K - $2M</div>
+                <p class="savings">Annual Impact</p>
+                <ul>
+                    <li>Revenue increase: 35-50%</li>
+                    <li>Cost reduction: 40%</li>
+                    <li>Productivity: +75%</li>
+                </ul>
             </div>
         </div>
-    </div>
-
-    <div class="final-cta" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%); color: white; padding: 30px; border-radius: 10px; margin: 30px 0; text-align: center;">
-        <h3 style="margin: 0 0 15px 0; color: white;">🎉 Ready to Get Started?</h3>
-        <p style="margin: 0 0 20px 0; font-size: 18px;">Join thousands of businesses already benefiting from this solution.</p>
-        <a href="{affiliate_data['primary']}" target="_blank" rel="noopener" style="background: white; color: #ff6b6b; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">Get Started Now →</a>
-        <p style="margin: 15px 0 0 0; font-size: 12px; opacity: 0.9;">No credit card required • Cancel anytime</p>
-    </div>
-
-    <div class="disclaimer-section" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #dee2e6; color: #6c757d; font-size: 14px;">
-        <p><em>This review is based on current market analysis and feature comparisons. Pricing and features may change. Always verify current information with the vendor before making purchasing decisions. Some links in this article are affiliate links, which means we may earn a commission if you make a purchase through them at no additional cost to you.</em></p>
-    </div>
-</div>
-"""
-
-    excerpt = f"Comprehensive guide to {title} covering features, pricing, benefits, and use cases. Find out if this {category.lower()} solution is right for your business needs."
+        
+        <div class="final-cta">
+            <h3>🎯 Start Your Transformation Today</h3>
+            <p>Don't let competitors gain the advantage. <a href="{affiliate_links['mailmodo']}" target="_blank" rel="noopener sponsored">Begin with Mailmodo's proven platform</a> and join thousands of businesses already achieving breakthrough results!</p>
+        </div>
+    </article>
+    """
     
-    return content, excerpt
+    # Generate excerpt and meta description
+    excerpt = f"Discover the top {category.lower()} tools that deliver {data['roi_metrics']}. Complete analysis of features, pricing, and ROI potential."
+    meta_description = f"Compare the best {category.lower()} tools for 2025. Features, pricing, ROI analysis, and expert recommendations to maximize your investment."
+    
+    # Prepare affiliate links for database
+    affiliate_data = [
+        {"name": "Mailmodo", "url": affiliate_links['mailmodo']},
+        {"name": "CJ Affiliate", "url": affiliate_links['cj_affiliate']}
+    ]
+    
+    return html_content, excerpt, meta_description, affiliate_data
 
-# API Endpoints
+# AI Content Generation with fallback
+async def generate_ai_content(title: str, category: str, tags: List[str] = None) -> Dict[str, Any]:
+    """Generate AI-powered blog content with affiliate links and SEO optimization"""
+    
+    if not AI_ENABLED or not openai_client:
+        # Use enhanced fallback with affiliate links
+        content, excerpt, meta_description, affiliate_links = generate_html_content_with_affiliates(title, category, tags or [])
+        return {
+            "content": content,
+            "excerpt": excerpt,
+            "meta_description": meta_description,
+            "affiliate_links": affiliate_links
+        }
+    
+    try:
+        affiliate_links = get_affiliate_links(category)
+        
+        prompt = f"""
+        Write a comprehensive, SEO-optimized blog post about "{title}" in the {category} category.
+        
+        Requirements:
+        - 2000-3000 words with HTML formatting
+        - Include strategic affiliate links: {affiliate_links['mailmodo']} and {affiliate_links['cj_affiliate']}
+        - Use proper headings (h1, h2, h3)
+        - Include profit-focused content with monetization opportunities
+        - Add call-to-action boxes with affiliate links
+        - Include pricing information and comparison tables
+        - Focus on high-value tools that generate revenue
+        - Use persuasive copywriting to drive conversions
+        - Add sections for pros/cons, pricing, and alternatives
+        - Include specific ROI metrics and case studies
+        
+        Structure:
+        1. Compelling introduction with business impact
+        2. Problem identification and cost of inaction
+        3. Solution analysis with affiliate recommendations
+        4. Comparison table with pricing and ROI
+        5. Implementation strategy
+        6. Call-to-action sections with affiliate links
+        7. Conclusion with final CTA
+        
+        Make it highly profitable and conversion-focused while remaining valuable and ethical.
+        """
+        
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an expert SaaS content writer focused on creating profitable, high-converting blog content with strategic affiliate marketing."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=4000,
+            temperature=0.7
+        )
+        
+        content = response.choices[0].message.content
+        
+        # Generate meta description
+        meta_prompt = f"Write a compelling 150-character meta description for a blog post titled '{title}' in the {category} category. Focus on SEO and conversion optimization."
+        
+        meta_response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are an SEO expert who writes compelling meta descriptions for maximum click-through rates."},
+                {"role": "user", "content": meta_prompt}
+            ],
+            max_tokens=100,
+            temperature=0.5
+        )
+        
+        meta_description = meta_response.choices[0].message.content.strip()
+        excerpt = content[:200] + "..." if len(content) > 200 else content
+        
+        return {
+            "content": content,
+            "meta_description": meta_description,
+            "excerpt": excerpt,
+            "affiliate_links": [
+                {"name": "Mailmodo", "url": affiliate_links["mailmodo"]},
+                {"name": "CJ Affiliate", "url": affiliate_links["cj_affiliate"]}
+            ]
+        }
+        
+    except Exception as e:
+        logging.error(f"OpenAI API error: {e}")
+        # Fall back to enhanced content generation
+        content, excerpt, meta_description, affiliate_links = generate_html_content_with_affiliates(title, category, tags or [])
+        return {
+            "content": content,
+            "excerpt": excerpt,
+            "meta_description": meta_description,
+            "affiliate_links": affiliate_links
+        }
+
+# API Endpoints - FIXED ROUTING ORDER
 @api_router.get("/")
 async def root():
     return {"message": "SaaS Tools Digital API", "status": "operational", "ai_enabled": AI_ENABLED}
+
+@api_router.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "SaaS Tools Digital API"}
 
 @api_router.get("/tools", response_model=List[SaaSTool])
 async def get_tools(
@@ -215,214 +405,199 @@ async def get_tools(
     limit: int = Query(20, le=100),
     skip: int = 0
 ):
-    query = {}
-    
+    """Get SaaS tools with optional filtering"""
+    filter_dict = {}
     if category:
-        query["category"] = category
-    if pricing_type:
-        query["pricing_type"] = pricing_type
+        filter_dict["category"] = category
     if search:
-        query["$or"] = [
+        filter_dict["$or"] = [
             {"name": {"$regex": search, "$options": "i"}},
-            {"description": {"$regex": search, "$options": "i"}},
-            {"tags": {"$in": [search]}}
+            {"description": {"$regex": search, "$options": "i"}}
         ]
+    if pricing_type:
+        filter_dict["pricing"] = {"$regex": pricing_type, "$options": "i"}
     
-    tools = await db.saas_tools.find(query).skip(skip).limit(limit).to_list(limit)
+    tools = await db.saas_tools.find(filter_dict).sort("rating", -1).skip(skip).limit(limit).to_list(length=limit)
     return [SaaSTool(**tool) for tool in tools]
 
-# FIXED: Correct endpoint order - specific endpoints BEFORE generic {slug}
 @api_router.get("/blog", response_model=List[BlogPost])
 async def get_blog_posts(limit: int = Query(10, le=50), skip: int = 0):
-    """Get all blog posts"""
-    try:
-        posts = await db.blog_posts.find().sort("published_at", -1).skip(skip).limit(limit).to_list(limit)
-        return [BlogPost(**post) for post in posts]
-    except Exception as e:
-        logging.error(f"Error fetching posts: {e}")
-        return []
+    """Get blog posts"""
+    posts = await db.blog_posts.find().sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    return [BlogPost(**post) for post in posts]
 
+# CRITICAL: Specific endpoints BEFORE generic slug endpoint
 @api_router.post("/blog/bulk-generate")
 async def bulk_generate_blog_posts():
-    """Generate initial blog posts for the platform"""
+    """Generate multiple blog posts for initial content"""
     
-    try:
-        # Sample blog post topics with categories
-        blog_topics = [
-            {"title": "Best CRM Software for Small Business 2025", "category": "CRM Software", "tags": ["crm", "small-business", "2025"]},
-            {"title": "Top Project Management Tools That Actually Work", "category": "Project Management", "tags": ["project-management", "productivity", "collaboration"]},
-            {"title": "Email Marketing Platforms: Complete ROI Analysis", "category": "Email Marketing", "tags": ["email", "marketing", "automation", "roi"]},
-            {"title": "Analytics Tools Every Business Needs in 2025", "category": "Analytics Tools", "tags": ["analytics", "data", "insights", "business-intelligence"]},
-            {"title": "Design Software for Non-Designers: Complete Guide", "category": "Design Tools", "tags": ["design", "ui-ux", "beginner-friendly", "graphics"]},
-            {"title": "Customer Support Software That Reduces Churn", "category": "Customer Support", "tags": ["support", "customer-service", "retention", "helpdesk"]},
-            {"title": "Accounting Software for Growing SaaS Companies", "category": "Finance", "tags": ["accounting", "finance", "saas", "bookkeeping"]},
-            {"title": "HR Management Tools: Streamline Your People Operations", "category": "HR Software", "tags": ["hr", "management", "employees", "recruitment"]},
-            {"title": "Social Media Management: Tools That Generate ROI", "category": "Social Media", "tags": ["social-media", "marketing", "roi", "automation"]},
-            {"title": "E-commerce Platforms: Which One Maximizes Revenue?", "category": "E-commerce", "tags": ["ecommerce", "sales", "revenue", "online-store"]},
-            {"title": "Video Conferencing Solutions: Performance vs Price", "category": "Communication", "tags": ["video-conferencing", "remote-work", "communication", "meetings"]},
-            {"title": "Password Management: Security Tools Your Team Needs", "category": "Security", "tags": ["password-manager", "security", "cybersecurity", "team-tools"]},
-            {"title": "Backup Solutions: Protect Your Business Data", "category": "Security", "tags": ["backup", "data-protection", "cloud-storage", "disaster-recovery"]},
-            {"title": "Lead Generation Tools That Actually Work in 2025", "category": "Marketing", "tags": ["lead-generation", "marketing", "sales", "conversion"]},
-            {"title": "Automation Tools: Reduce Manual Work, Increase Profits", "category": "Productivity", "tags": ["automation", "productivity", "efficiency", "workflow"]},
-            {"title": "Customer Feedback Tools: Turn Opinions into Revenue", "category": "Customer Support", "tags": ["feedback", "survey", "customer-experience", "improvement"]},
-            {"title": "Invoicing Software: Get Paid Faster, Work Less", "category": "Finance", "tags": ["invoicing", "billing", "payments", "cash-flow"]},
-            {"title": "Team Collaboration Tools for Remote-First Companies", "category": "Productivity", "tags": ["collaboration", "remote-work", "team-communication", "productivity"]},
-            {"title": "SEO Tools That Deliver Measurable Traffic Growth", "category": "Marketing", "tags": ["seo", "traffic", "search-optimization", "digital-marketing"]},
-            {"title": "Live Chat Software: Convert Visitors to Customers", "category": "Customer Support", "tags": ["live-chat", "conversion", "customer-service", "website-tools"]},
-        ]
-        
-        created_posts = []
-        
-        for topic in blog_topics:
-            try:
-                # Generate slug from title
-                slug = topic["title"].lower()
-                slug = slug.replace(" ", "-").replace(":", "").replace("?", "").replace(",", "").replace("(", "").replace(")", "")
-                slug = "".join(c for c in slug if c.isalnum() or c == "-")
-                
-                # Check if post already exists
-                existing_post = await db.blog_posts.find_one({"slug": slug})
-                if existing_post:
-                    continue
-                
-                # Generate content using existing function
-                content, excerpt = generate_html_content_with_affiliates(
-                    topic["title"], 
-                    topic["category"], 
-                    topic["tags"]
-                )
-                
-                # Create blog post
-                blog_post = BlogPost(
-                    title=topic["title"],
-                    slug=slug,
-                    content=content,
-                    excerpt=excerpt,
-                    category=topic["category"],
-                    tags=topic["tags"],
-                    featured_image="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop",
-                    author="SaaS Tools Team"
-                )
-                
-                await db.blog_posts.insert_one(blog_post.dict())
-                created_posts.append(blog_post)
-                
-                # Small delay to avoid overwhelming the database
-                await asyncio.sleep(0.1)
-                
-            except Exception as e:
-                logging.error(f"Error creating post '{topic['title']}': {e}")
+    blog_topics = [
+        {"title": "Best CRM Software for Small Business 2025", "category": "Sales"},
+        {"title": "Top Project Management Tools That Actually Work", "category": "Productivity"},
+        {"title": "Email Marketing Platforms: Complete ROI Analysis", "category": "Marketing"},
+        {"title": "Analytics Tools Every Business Needs in 2025", "category": "Analytics"},
+        {"title": "Design Software for Non-Designers: Complete Guide", "category": "Design"},
+        {"title": "Customer Support Software That Reduces Churn", "category": "Support"},
+        {"title": "Accounting Software for Growing SaaS Companies", "category": "Finance"},
+        {"title": "HR Management Tools: Streamline Your People Operations", "category": "HR"},
+        {"title": "Social Media Management: Tools That Generate ROI", "category": "Marketing"},
+        {"title": "E-commerce Platforms: Which One Maximizes Revenue?", "category": "E-commerce"},
+        {"title": "Video Conferencing Solutions: Performance vs Price", "category": "Communication"},
+        {"title": "Password Management: Security Tools Your Team Needs", "category": "Security"},
+        {"title": "Backup Solutions: Protect Your Business Data", "category": "Security"},
+        {"title": "Lead Generation Tools That Actually Work in 2025", "category": "Marketing"},
+        {"title": "Automation Tools: Reduce Manual Work, Increase Profits", "category": "Productivity"},
+        {"title": "Customer Feedback Tools: Turn Opinions into Revenue", "category": "Support"},
+        {"title": "Invoicing Software: Get Paid Faster, Work Less", "category": "Finance"},
+        {"title": "Team Collaboration Tools for Remote-First Companies", "category": "Productivity"},
+        {"title": "SEO Tools That Deliver Measurable Traffic Growth", "category": "Marketing"},
+        {"title": "Live Chat Software: Convert Visitors to Customers", "category": "Support"}
+    ]
+    
+    created_posts = []
+    
+    for topic in blog_topics:
+        try:
+            # Check if post already exists
+            existing_post = await db.blog_posts.find_one({"title": topic["title"]})
+            if existing_post:
                 continue
-        
-        return {
-            "message": f"Successfully generated {len(created_posts)} blog posts with affiliate links!",
-            "posts": [{"title": post.title, "slug": post.slug, "category": post.category} for post in created_posts]
-        }
-        
-    except Exception as e:
-        logging.error(f"Error in bulk generation: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate posts: {str(e)}")
+            
+            # Generate slug
+            slug = slugify(topic["title"])
+            existing_slug = await db.blog_posts.find_one({"slug": slug})
+            if existing_slug:
+                slug = f"{slug}-{str(uuid.uuid4())[:8]}"
+            
+            # Generate AI content
+            ai_content = await generate_ai_content(topic["title"], topic["category"], ["saas", "tools", "business"])
+            
+            # Create blog post
+            blog_post = BlogPost(
+                title=topic["title"],
+                slug=slug,
+                content=ai_content["content"],
+                excerpt=ai_content["excerpt"],
+                category=topic["category"],
+                tags=["saas", "tools", "business", "productivity"],
+                featured_image="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop",
+                meta_title=topic["title"],
+                meta_description=ai_content["meta_description"],
+                affiliate_links=ai_content["affiliate_links"],
+                featured=len(created_posts) < 5  # First 5 posts are featured
+            )
+            
+            await db.blog_posts.insert_one(blog_post.dict())
+            created_posts.append(blog_post)
+            
+            # Small delay to avoid overwhelming the system
+            await asyncio.sleep(0.1)
+            
+        except Exception as e:
+            logging.error(f"Error creating post '{topic['title']}': {e}")
+            continue
+    
+    return {
+        "message": f"Successfully generated {len(created_posts)} blog posts with affiliate links!",
+        "posts": [{"title": post.title, "slug": post.slug, "category": post.category} for post in created_posts]
+    }
 
 @api_router.post("/blog/update-content")
 async def update_existing_content(count: int = 20):
-    """Update existing posts with HTML content and affiliate links"""
-    
+    """Update existing blog posts with enhanced content"""
     try:
-        # Get existing posts with old content
-        posts = await db.blog_posts.find().limit(count).to_list(count)
+        # Get existing posts
+        existing_posts = await db.blog_posts.find().limit(count).to_list(length=count)
         updated_count = 0
         
-        for post in posts:
+        for post in existing_posts:
             try:
-                # Generate new HTML content with affiliate links
-                content, excerpt = generate_html_content_with_affiliates(
-                    post['title'], 
-                    post.get('category', 'SaaS Tools'), 
-                    post.get('tags', [])
-                )
+                # Generate new enhanced content
+                ai_content = await generate_ai_content(post["title"], post["category"], post.get("tags", []))
                 
                 # Update the post
                 await db.blog_posts.update_one(
                     {"_id": post["_id"]},
                     {"$set": {
-                        "content": content,
-                        "excerpt": excerpt,
+                        "content": ai_content["content"],
+                        "excerpt": ai_content["excerpt"],
+                        "meta_description": ai_content["meta_description"],
+                        "affiliate_links": ai_content["affiliate_links"],
                         "updated_at": datetime.utcnow()
                     }}
                 )
-                
                 updated_count += 1
+                await asyncio.sleep(0.1)
                 
             except Exception as e:
-                logging.error(f"Error updating post '{post.get('title', 'unknown')}': {e}")
+                logging.error(f"Error updating post '{post['title']}': {e}")
                 continue
         
         return {
-            "message": f"Successfully updated {updated_count} posts with HTML content and affiliate links!",
+            "message": f"Successfully updated {updated_count} blog posts",
             "updated_count": updated_count
         }
         
     except Exception as e:
-        logging.error(f"Error in content update: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update content")
-
-# IMPORTANT: Generic {slug} endpoint MUST be last
-@api_router.get("/blog/{slug}", response_model=BlogPost)
-async def get_blog_post(slug: str):
-    try:
-        post = await db.blog_posts.find_one({"slug": slug})
-        if not post:
-            raise HTTPException(status_code=404, detail="Blog post not found")
-        return BlogPost(**post)
-    except Exception as e:
-        logging.error(f"Error fetching post: {e}")
-        raise HTTPException(status_code=404, detail="Blog post not found")
+        logging.error(f"Error updating content: {e}")
+        return {"error": str(e)}
 
 @api_router.get("/stats")
 async def get_stats():
+    """Get platform statistics"""
     try:
-        tools_count = await db.saas_tools.count_documents({})
-        blog_posts_count = await db.blog_posts.count_documents({})
+        total_posts = await db.blog_posts.count_documents({})
+        published_posts = await db.blog_posts.count_documents({"published": True})
+        featured_posts = await db.blog_posts.count_documents({"featured": True})
         
         return {
-            "tools_count": tools_count,
-            "blog_posts_count": blog_posts_count,
+            "total_posts": total_posts,
+            "published_posts": published_posts,
+            "featured_posts": featured_posts,
             "ai_enabled": AI_ENABLED
         }
     except Exception as e:
-        logging.error(f"Error fetching stats: {e}")
-        return {"tools_count": 0, "blog_posts_count": 0, "ai_enabled": AI_ENABLED}
+        logging.error(f"Error getting stats: {e}")
+        return {"error": str(e)}
 
 @api_router.post("/newsletter/subscribe")
 async def subscribe_newsletter(email: str, name: Optional[str] = None):
     """Subscribe to newsletter"""
     try:
-        # Simple email validation
-        if "@" not in email or "." not in email:
-            raise HTTPException(status_code=400, detail="Invalid email address")
+        existing_sub = await db.newsletter_subscriptions.find_one({"email": email})
+        if existing_sub:
+            return {"message": "Already subscribed to newsletter"}
         
-        # Check if already subscribed
-        existing = await db.newsletter_subscriptions.find_one({"email": email})
-        if existing:
-            return {"message": "Email already subscribed"}
-        
-        # Add subscription
-        subscription = {
-            "id": str(uuid.uuid4()),
-            "email": email,
-            "name": name,
-            "subscribed_at": datetime.utcnow(),
-            "active": True
-        }
-        
-        await db.newsletter_subscriptions.insert_one(subscription)
+        subscription = NewsletterSubscription(email=email, name=name)
+        await db.newsletter_subscriptions.insert_one(subscription.dict())
         return {"message": "Successfully subscribed to newsletter"}
-        
     except Exception as e:
-        logging.error(f"Newsletter subscription error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to subscribe")
+        logging.error(f"Error subscribing to newsletter: {e}")
+        return {"error": str(e)}
 
-# Include router and middleware
+# Generic slug endpoint MUST come last
+@api_router.get("/blog/{slug}", response_model=BlogPost)
+async def get_blog_post(slug: str):
+    """Get a specific blog post by slug"""
+    try:
+        post = await db.blog_posts.find_one({"slug": slug})
+        if not post:
+            raise HTTPException(status_code=404, detail="Blog post not found")
+        
+        # Increment view count
+        await db.blog_posts.update_one(
+            {"slug": slug},
+            {"$inc": {"views": 1}}
+        )
+        
+        return BlogPost(**post)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting blog post: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+# Include router
 app.include_router(api_router)
 
 @app.get("/")
@@ -433,6 +608,7 @@ async def main_root():
 async def health_check():
     return {"status": "healthy", "service": "SaaS Tools Digital API"}
 
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -440,6 +616,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     import uvicorn
