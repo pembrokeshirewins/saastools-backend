@@ -7,6 +7,7 @@ from typing import List, Optional
 import uuid
 from datetime import datetime
 import logging
+import asyncio
 
 # MongoDB connection
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
@@ -76,9 +77,9 @@ def get_affiliate_links(category: str, tool_name: str = "") -> dict:
             "text": "Try Monday.com - 14 Day Free Trial"
         },
         "Email Marketing": {
-            "primary": "https://mbsy.co/k8Bqf",  # Mailchimp
+            "primary": "https://www.mailmodo.com/?fpr=adrian55",  # Your Mailmodo affiliate
             "secondary": "https://convertkit.com/?ref=saastools",
-            "text": "Start with Mailchimp - Free up to 2,000 contacts"
+            "text": "Start with Mailmodo - Interactive Email Platform"
         },
         "Analytics Tools": {
             "primary": "https://analytics.google.com/analytics/web/",
@@ -91,8 +92,8 @@ def get_affiliate_links(category: str, tool_name: str = "") -> dict:
             "text": "Try Canva Pro - 30 Day Free Trial"
         },
         "default": {
-            "primary": "#",
-            "secondary": "#",
+            "primary": "https://www.mailmodo.com/?fpr=adrian55",
+            "secondary": "https://cj.affiliate.com/link",
             "text": "Learn More"
         }
     }
@@ -363,6 +364,87 @@ async def get_blog_post(slug: str):
         logging.error(f"Error fetching post: {e}")
         raise HTTPException(status_code=404, detail="Blog post not found")
 
+@api_router.post("/blog/bulk-generate")
+async def bulk_generate_blog_posts():
+    """Generate initial blog posts for the platform"""
+    
+    try:
+        # Sample blog post topics with categories
+        blog_topics = [
+            {"title": "Best CRM Software for Small Business 2025", "category": "CRM Software", "tags": ["crm", "small-business", "2025"]},
+            {"title": "Top Project Management Tools That Actually Work", "category": "Project Management", "tags": ["project-management", "productivity", "collaboration"]},
+            {"title": "Email Marketing Platforms: Complete ROI Analysis", "category": "Email Marketing", "tags": ["email", "marketing", "automation", "roi"]},
+            {"title": "Analytics Tools Every Business Needs in 2025", "category": "Analytics Tools", "tags": ["analytics", "data", "insights", "business-intelligence"]},
+            {"title": "Design Software for Non-Designers: Complete Guide", "category": "Design Tools", "tags": ["design", "ui-ux", "beginner-friendly", "graphics"]},
+            {"title": "Customer Support Software That Reduces Churn", "category": "Customer Support", "tags": ["support", "customer-service", "retention", "helpdesk"]},
+            {"title": "Accounting Software for Growing SaaS Companies", "category": "Finance", "tags": ["accounting", "finance", "saas", "bookkeeping"]},
+            {"title": "HR Management Tools: Streamline Your People Operations", "category": "HR Software", "tags": ["hr", "management", "employees", "recruitment"]},
+            {"title": "Social Media Management: Tools That Generate ROI", "category": "Social Media", "tags": ["social-media", "marketing", "roi", "automation"]},
+            {"title": "E-commerce Platforms: Which One Maximizes Revenue?", "category": "E-commerce", "tags": ["ecommerce", "sales", "revenue", "online-store"]},
+            {"title": "Video Conferencing Solutions: Performance vs Price", "category": "Communication", "tags": ["video-conferencing", "remote-work", "communication", "meetings"]},
+            {"title": "Password Management: Security Tools Your Team Needs", "category": "Security", "tags": ["password-manager", "security", "cybersecurity", "team-tools"]},
+            {"title": "Backup Solutions: Protect Your Business Data", "category": "Security", "tags": ["backup", "data-protection", "cloud-storage", "disaster-recovery"]},
+            {"title": "Lead Generation Tools That Actually Work in 2025", "category": "Marketing", "tags": ["lead-generation", "marketing", "sales", "conversion"]},
+            {"title": "Automation Tools: Reduce Manual Work, Increase Profits", "category": "Productivity", "tags": ["automation", "productivity", "efficiency", "workflow"]},
+            {"title": "Customer Feedback Tools: Turn Opinions into Revenue", "category": "Customer Support", "tags": ["feedback", "survey", "customer-experience", "improvement"]},
+            {"title": "Invoicing Software: Get Paid Faster, Work Less", "category": "Finance", "tags": ["invoicing", "billing", "payments", "cash-flow"]},
+            {"title": "Team Collaboration Tools for Remote-First Companies", "category": "Productivity", "tags": ["collaboration", "remote-work", "team-communication", "productivity"]},
+            {"title": "SEO Tools That Deliver Measurable Traffic Growth", "category": "Marketing", "tags": ["seo", "traffic", "search-optimization", "digital-marketing"]},
+            {"title": "Live Chat Software: Convert Visitors to Customers", "category": "Customer Support", "tags": ["live-chat", "conversion", "customer-service", "website-tools"]},
+        ]
+        
+        created_posts = []
+        
+        for topic in blog_topics:
+            try:
+                # Generate slug from title
+                slug = topic["title"].lower()
+                slug = slug.replace(" ", "-").replace(":", "").replace("?", "").replace(",", "").replace("(", "").replace(")", "")
+                slug = "".join(c for c in slug if c.isalnum() or c == "-")
+                
+                # Check if post already exists
+                existing_post = await db.blog_posts.find_one({"slug": slug})
+                if existing_post:
+                    continue
+                
+                # Generate content using existing function
+                content, excerpt = generate_html_content_with_affiliates(
+                    topic["title"], 
+                    topic["category"], 
+                    topic["tags"]
+                )
+                
+                # Create blog post
+                blog_post = BlogPost(
+                    title=topic["title"],
+                    slug=slug,
+                    content=content,
+                    excerpt=excerpt,
+                    category=topic["category"],
+                    tags=topic["tags"],
+                    featured_image="https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&h=400&fit=crop",
+                    author="SaaS Tools Team"
+                )
+                
+                await db.blog_posts.insert_one(blog_post.dict())
+                created_posts.append(blog_post)
+                
+                # Small delay to avoid overwhelming the database
+                await asyncio.sleep(0.1)
+                
+            except Exception as e:
+                logging.error(f"Error creating post '{topic['title']}': {e}")
+                continue
+        
+        return {
+            "message": f"Successfully generated {len(created_posts)} blog posts with affiliate links!",
+            "posts": [{"title": post.title, "slug": post.slug, "category": post.category} for post in created_posts]
+        }
+        
+    except Exception as e:
+        logging.error(f"Error in bulk generation: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate posts: {str(e)}")
+
 @api_router.post("/blog/update-content")
 async def update_existing_content(count: int = 20):
     """FIXED: Update existing posts with HTML content and affiliate links"""
@@ -420,6 +502,35 @@ async def get_stats():
     except Exception as e:
         logging.error(f"Error fetching stats: {e}")
         return {"tools_count": 0, "blog_posts_count": 0, "ai_enabled": AI_ENABLED}
+
+@api_router.post("/newsletter/subscribe")
+async def subscribe_newsletter(email: str, name: Optional[str] = None):
+    """Subscribe to newsletter"""
+    try:
+        # Simple email validation
+        if "@" not in email or "." not in email:
+            raise HTTPException(status_code=400, detail="Invalid email address")
+        
+        # Check if already subscribed
+        existing = await db.newsletter_subscriptions.find_one({"email": email})
+        if existing:
+            return {"message": "Email already subscribed"}
+        
+        # Add subscription
+        subscription = {
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "name": name,
+            "subscribed_at": datetime.utcnow(),
+            "active": True
+        }
+        
+        await db.newsletter_subscriptions.insert_one(subscription)
+        return {"message": "Successfully subscribed to newsletter"}
+        
+    except Exception as e:
+        logging.error(f"Newsletter subscription error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to subscribe")
 
 # Include router and middleware
 app.include_router(api_router)
